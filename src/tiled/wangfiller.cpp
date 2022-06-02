@@ -255,7 +255,7 @@ bool WangFiller::findBestMatch(const TileLayer &target,
     const CellInfo info = grid.get(position);
     const quint64 maskedWangId = info.desired & info.mask;
 
-    RandomPicker<Cell> matches;
+    RandomTaker<Cell> matches;
     int lowestPenalty = INT_MAX;
 
     auto processCandidate = [&] (WangId wangId, const Cell &cell) {

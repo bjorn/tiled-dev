@@ -21,6 +21,7 @@
 #pragma once
 
 #include <QMap>
+#include <QVector>
 
 #include <random>
 
@@ -73,22 +74,6 @@ public:
         return it.value();
     }
 
-    //same as pick, but removes the selected element.
-    T take()
-    {
-        Q_ASSERT(!isEmpty());
-
-        std::uniform_real_distribution<Real> dis(0, mSum);
-        const Real random = dis(globalRandomEngine());
-        auto it = mThresholds.lowerBound(random);
-        if (it == mThresholds.end())
-            --it;
-
-        const T result = it.value();
-        mThresholds.erase(it);
-        return result;
-    }
-
     void clear()
     {
         mSum = 0.0;
@@ -98,6 +83,67 @@ public:
 private:
     Real mSum;
     QMap<Real, T> mThresholds;
+};
+
+/**
+ * A class that helps take random things that each have a probability
+ * assigned. Each added value can only be taken once.
+ */
+template<typename T, typename Real = qreal>
+class RandomTaker
+{
+public:
+    RandomTaker()
+        : mSum(0.0)
+    {}
+
+    void add(const T &value, Real probability = 1.0)
+    {
+        if (probability > 0) {
+            mSum += probability;
+            mEntries.append({ value, probability });
+        }
+    }
+
+    bool isEmpty() const
+    {
+        return mEntries.isEmpty();
+    }
+
+    T take()
+    {
+        Q_ASSERT(!isEmpty());
+
+        std::uniform_real_distribution<Real> dis(0, mSum);
+        const Real threshold = dis(globalRandomEngine());
+
+        Real sum = 0.0;
+        auto i = mEntries.size() - 1;
+
+        for (; i > 0; --i) {
+            sum += mEntries[i].second;
+            if (sum > threshold)
+                break;
+        }
+
+        // Make sure chosen entry is the last one
+        if (i != mEntries.size() - 1)
+            std::swap(mEntries[i], mEntries.last());
+
+        auto entry = mEntries.takeLast();
+        mSum -= entry.second;
+        return entry.first;
+    }
+
+    void clear()
+    {
+        mSum = 0.0;
+        mEntries.clear();
+    }
+
+private:
+    Real mSum;
+    QVector<QPair<T, Real>> mEntries;
 };
 
 } // namespace Tiled
