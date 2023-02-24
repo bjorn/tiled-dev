@@ -693,7 +693,8 @@ static void fillTileLayer(GMRTileLayer &gmrTileLayer, const TileLayer *tileLayer
     for (int y = 0; y < tileLayer->height(); ++y) {
         for (int x = 0; x < tileLayer->width(); ++x) {
             const Cell &cell = tileLayer->cellAt(x, y);
-            if (cell.tileset() != tileset) {
+            const Tile *tile = cell.tile();
+            if (cell.tileset() != tileset || (tile && !tile->offset().isNull())) {
                 gmrTileLayer.tiles.push_back(Unintialized);
                 continue;
             }
@@ -750,6 +751,18 @@ static void initializeTileGraphic(GMRGraphic &g,
         std::swap(g.v0, g.v1);
 }
 
+static bool canExportToGMRTileLayer(const Tileset &tileset, const Map &map)
+{
+    if (map.orientation() != Map::Orthogonal)
+        return false;
+    if (tileset.isCollection())
+        return false;
+    if (tileset.tileSize() != map.tileSize())
+        return false;
+
+    return true;
+}
+
 static void createAssetsFromTiles(std::vector<GMRGraphic> &assets,
                                   const TileLayer *tileLayer,
                                   Context &context)
@@ -764,17 +777,15 @@ static void createAssetsFromTiles(std::vector<GMRGraphic> &assets,
     auto tileRenderFunction = [&](QPoint tilePos, const QPointF &screenPos) {
         const Cell &cell = tileLayer->cellAt(tilePos);
         const Tileset *tileset = cell.tileset();
-
-        // Skip tiles that should be already covered by a GMRTileLayer
         if (!tileset)
-            return;
-        if (!tileset->isCollection() &&
-                tileset->tileSize() == tileLayer->map()->tileSize() &&
-                tileLayer->map()->orientation() == Map::Orthogonal)
             return;
 
         const auto tile = tileset->findTile(cell.tileId());
         if (!tile || tile->image().isNull())
+            return;
+
+        // Skip tiles that should be already covered by a GMRTileLayer
+        if (canExportToGMRTileLayer(*tileset, *tileLayer->map()) && tile->offset().isNull())
             return;
 
         const bool isSprite = !tile->imageSource().isEmpty();
@@ -784,7 +795,7 @@ static void createAssetsFromTiles(std::vector<GMRGraphic> &assets,
         QSize size = tile->size();
         QPointF origin(optionalProperty(tile, "originX", 0.0),
                        optionalProperty(tile, "originY", 0.0));
-        QPointF pos = screenPos + tileset->tileOffset() + layerOffset + origin;
+        QPointF pos = screenPos + tile->offset() + layerOffset + origin;
 
         if (isSprite) {
             g.spriteId = spriteId(tile, tile->imageSource(), context);
@@ -850,12 +861,12 @@ static std::unique_ptr<GMRLayer> processTileLayer(const TileLayer *tileLayer,
     std::vector<std::unique_ptr<GMRLayer>> gmrLayers;
     std::vector<GMRGraphic> assets;
 
-    // For orthogonal maps we try to use GMRTileLayer, for performance
-    // reasons and because it supports tile rotation.
+    // For orthogonal maps we try to use GMRTileLayer, for performance reasons
+    // and because it supports tile rotation.
     //
-    // GMRTileLayer can't support other orientations, or image
-    // collection tilesets or tiles using a different grid size than
-    // tile size. Such tiles are exported to a GMRAssetLayer instead.
+    // GMRTileLayer can't support other orientations, or image collection
+    // tilesets, tiles using a different grid size than tile size or tiles with
+    // an offset. Such tiles are exported to a GMRAssetLayer instead.
     //
     if (tileLayer->map()->orientation() == Map::Orthogonal) {
         auto tilesets = tileLayer->usedTilesets().values();
@@ -865,9 +876,7 @@ static std::unique_ptr<GMRLayer> processTileLayer(const TileLayer *tileLayer,
         });
 
         for (const auto &tileset : qAsConst(tilesets)) {
-            if (tileset->isCollection())
-                continue;
-            if (tileset->tileSize() != tileLayer->map()->tileSize())
+            if (!canExportToGMRTileLayer(*tileset, *tileLayer->map()))
                 continue;
 
             auto gmrTileLayer = std::make_unique<GMRTileLayer>();
@@ -967,8 +976,7 @@ static std::unique_ptr<GMRLayer> processObjectGroup(const ObjectGroup *objectGro
             instance.isDnd = takeProperty(props, "isDnd", instance.isDnd);
             instance.objectId = sanitizeName(className);
 
-            QPointF origin(takeProperty(props, "originX", 0.0),
-                           takeProperty(props, "originY", 0.0));
+            QPointF origin;
 
             if (!mapObject->cell().isEmpty()) {
                 props.remove(QStringLiteral("sprite")); // ignore this, probably inherited from tile
@@ -976,6 +984,9 @@ static std::unique_ptr<GMRLayer> processObjectGroup(const ObjectGroup *objectGro
                 // For tile objects we can support scaling and flipping, though
                 // flipping in combination with rotation didn't work in GameMaker 1.4 (maybe works in 2?).
                 if (auto tile = mapObject->cell().tile()) {
+                    origin = QPointF(takeProperty(props, "originX", tile->origin().x()),
+                                     takeProperty(props, "originY", tile->origin().y()));
+
                     const QSize tileSize = tile->size();
                     instance.scaleX = mapObject->width() / tileSize.width();
                     instance.scaleY = mapObject->height() / tileSize.height();
@@ -992,12 +1003,15 @@ static std::unique_ptr<GMRLayer> processObjectGroup(const ObjectGroup *objectGro
                         origin.ry() += mapObject->height() - 2 * origin.y();
                     }
                 }
-
-                // Tile objects don't necessarily have top-left origin in Tiled,
-                // so the position needs to be translated for top-left origin in
-                // GameMaker, taking into account the rotation.
-                origin -= alignmentOffset(mapObject->size(), mapObject->alignment());
+            } else {
+                origin = QPointF(takeProperty(props, "originX", 0.0),
+                                 takeProperty(props, "originY", 0.0));
             }
+
+            // Tile objects don't necessarily have top-left origin in Tiled,
+            // so the position needs to be translated for top-left origin in
+            // GameMaker, taking into account the rotation.
+            origin -= alignmentOffset(mapObject->size(), mapObject->alignment());
 
             // Allow overriding the scale using custom properties
             instance.scaleX = takeProperty(props, "scaleX", instance.scaleX);
@@ -1050,8 +1064,8 @@ static std::unique_ptr<GMRLayer> processObjectGroup(const ObjectGroup *objectGro
 
             GMRGraphic &g = assets.emplace_back(isSprite);
 
-            QPointF origin(optionalProperty(mapObject, "originX", 0.0),
-                           optionalProperty(mapObject, "originY", 0.0));
+            QPointF origin(optionalProperty(mapObject, "originX", tile->origin().x()),
+                           optionalProperty(mapObject, "originY", tile->origin().y()));
 
             if (isSprite) {
                 g.spriteId = spriteId(tile, tile->imageSource(), context);
