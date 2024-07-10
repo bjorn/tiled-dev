@@ -31,6 +31,13 @@
 
 namespace Tiled {
 
+/**
+ * Constructs a custom properties helper that manages properties in the given
+ * \a propertyBrowser.
+ *
+ * Uses its own VariantPropertyManager to create the properties and
+ * instantiates a VariantEditorFactory which creates the editor widgets.
+ */
 CustomPropertiesHelper::CustomPropertiesHelper(QtAbstractPropertyBrowser *propertyBrowser,
                                                QObject *parent)
     : QObject(parent)
@@ -56,6 +63,14 @@ CustomPropertiesHelper::~CustomPropertiesHelper()
     mPropertyBrowser->unsetFactoryForManager(mPropertyManager);
 }
 
+/**
+ * Creates a top-level property with the given \a name and \a value.
+ *
+ * The property is not added to the property browser. It should be added either
+ * directly or to a suitable group property.
+ *
+ * The name of the property needs to be unique.
+ */
 QtVariantProperty *CustomPropertiesHelper::createProperty(const QString &name,
                                                           const QVariant &value)
 {
@@ -71,6 +86,17 @@ QtVariantProperty *CustomPropertiesHelper::createProperty(const QString &name,
     return property;
 }
 
+/**
+ * Implementation of property creation. Used by createProperty for creating
+ * top-level properties and by setPropertyAttributes for creating nested
+ * properties.
+ *
+ * The \a value is only used for determining the type of the property, it is
+ * not set on the property.
+ *
+ * This function works recursively, creating nested properties for class
+ * properties.
+ */
 QtVariantProperty *CustomPropertiesHelper::createPropertyInternal(const QString &name,
                                                                   const QVariant &value)
 {
@@ -99,6 +125,14 @@ QtVariantProperty *CustomPropertiesHelper::createPropertyInternal(const QString 
             }
             }
         }
+    } else if (type == QMetaType::QVariantList) {
+        // In case of list values, we need an expandable property with the list
+        // values as subproperties (though creation of such properties will
+        // only be done once the value is set)
+
+        // todo: lists probably need their own type here, such that a widget
+        // can be created that allows for adding elements
+        type = VariantPropertyManager::unstyledGroupTypeId();
     }
 
     if (type == objectRefTypeId())
@@ -127,6 +161,11 @@ QtVariantProperty *CustomPropertiesHelper::createPropertyInternal(const QString 
     return property;
 }
 
+/**
+ * Deletes the given top-level property.
+ *
+ * Should only be used for properties created with createProperty.
+ */
 void CustomPropertiesHelper::deleteProperty(QtProperty *property)
 {
     Q_ASSERT(hasProperty(property));
@@ -135,6 +174,13 @@ void CustomPropertiesHelper::deleteProperty(QtProperty *property)
     deletePropertyInternal(property);
 }
 
+/**
+ * Implementation of property deletion. Used by deleteProperty for deleting
+ * top-level properties and by deleteSubProperties for deleting nested
+ * properties.
+ *
+ * This function works recursively, also deleting all nested properties.
+ */
 void CustomPropertiesHelper::deletePropertyInternal(QtProperty *property)
 {
     Q_ASSERT(mPropertyTypeIds.contains(property));
@@ -143,6 +189,12 @@ void CustomPropertiesHelper::deletePropertyInternal(QtProperty *property)
     delete property;
 }
 
+/**
+ * Deletes all sub-properties of the given \a property.
+ *
+ * Used when a property is being deleted or before refreshing the nested
+ * properties that represent class members.
+ */
 void CustomPropertiesHelper::deleteSubProperties(QtProperty *property)
 {
     const auto subProperties = property->subProperties();
@@ -154,6 +206,9 @@ void CustomPropertiesHelper::deleteSubProperties(QtProperty *property)
     }
 }
 
+/**
+ * Removes all properties.
+ */
 void CustomPropertiesHelper::clear()
 {
     QHashIterator<QtProperty *, int> it(mPropertyTypeIds);
@@ -171,7 +226,10 @@ QVariant CustomPropertiesHelper::toDisplayValue(QVariant value) const
         value = value.value<PropertyValue>().value;
 
     if (value.userType() == objectRefTypeId())
-        value = QVariant::fromValue(DisplayObjectRef { value.value<ObjectRef>(), mMapDocument });
+        value = QVariant::fromValue(DisplayObjectRef {
+                                        value.value<ObjectRef>(),
+                                        mMapDocument
+                                    });
 
     return value;
 }
@@ -226,6 +284,24 @@ void CustomPropertiesHelper::onValueChanged(QtProperty *property, const QVariant
             static_cast<QtVariantProperty*>(subProperty)->setValue(toDisplayValue(value));
         }
     }
+
+    if (value.userType() == QMetaType::QVariantList) {
+        QScopedValueRollback<bool> updating(mUpdating, true);
+
+        // Delete any existing sub-properties
+        deleteSubProperties(property);
+
+        // Create a sub-property for each list value
+        const auto values = value.toList();
+        for (int i = 0; i < values.size(); ++i) {
+            const auto &value = values.at(i);
+
+            auto subProperty = createPropertyInternal(QString::number(i), value);
+            subProperty->setValue(toDisplayValue(value));
+            property->addSubProperty(subProperty);
+            mPropertyParents.insert(subProperty, property);
+        }
+    }
 }
 
 void CustomPropertiesHelper::resetProperty(QtProperty *property)
@@ -278,6 +354,15 @@ void CustomPropertiesHelper::propertyTypesChanged()
     }
 }
 
+/**
+ * When the given \a propertyType is an EnumPropertyType, sets the appropriate
+ * attributes on the given \a property.
+ *
+ * Also creates sub-properties for members when the given \a propertyType is a
+ * ClassPropertyType.
+ *
+ * Called after property creation, as well as when the property types changed.
+ */
 void CustomPropertiesHelper::setPropertyAttributes(QtVariantProperty *property,
                                                    const PropertyType &propertyType)
 {

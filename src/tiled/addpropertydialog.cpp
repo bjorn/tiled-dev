@@ -67,6 +67,7 @@ void AddPropertyDialog::initialize(const Tiled::ClassPropertyType *parentClassTy
     mUi->typeBox->addItem(plain, typeToName(QMetaType::Int),       0);
     mUi->typeBox->addItem(plain, typeToName(objectRefTypeId()),    QVariant::fromValue(ObjectRef()));
     mUi->typeBox->addItem(plain, typeToName(QMetaType::QString),   QString());
+    mUi->typeBox->addItem(plain, typeToName(QMetaType::QVariantList),  QVariantList());
 
     for (const auto propertyType : Object::propertyTypes()) {
         // Avoid suggesting the creation of circular dependencies between types

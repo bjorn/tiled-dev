@@ -34,6 +34,9 @@ class MapDocument;
 class PropertyType;
 class VariantEditorFactory;
 
+/**
+ * Helper class for managing custom properties in a QtAbstractPropertyBrowser.
+ */
 class CustomPropertiesHelper : public QObject
 {
     Q_OBJECT
