@@ -29,6 +29,7 @@ namespace Tiled {
 
 class DisplayObjectRef;
 class FileEdit;
+class ListEdit;
 class ObjectRefEdit;
 class TextPropertyEdit;
 class TilesetParametersEdit;
@@ -71,6 +72,7 @@ private:
     void textPropertyEditTextChanged(const QString &value);
     void comboBoxPropertyEditTextChanged(const QString &value);
     void objectRefEditValueChanged(const DisplayObjectRef &value);
+    void listEditValueChanged(const QVariantList &value);
     void slotEditorDestroyed(QObject *object);
 
     QMap<QtProperty *, QList<FileEdit *> > mCreatedFileEdits;
@@ -87,6 +89,9 @@ private:
 
     QMap<QtProperty *, QList<ObjectRefEdit *> > mCreatedObjectRefEdits;
     QMap<ObjectRefEdit *, QtProperty *> mObjectRefEditToProperty;
+
+    QMap<QtProperty *, QList<ListEdit *> > mCreatedListEdits;
+    QMap<ListEdit *, QtProperty *> mListEditToProperty;
 };
 
 } // namespace Tiled

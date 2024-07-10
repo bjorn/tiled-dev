@@ -125,14 +125,6 @@ QtVariantProperty *CustomPropertiesHelper::createPropertyInternal(const QString 
             }
             }
         }
-    } else if (type == QMetaType::QVariantList) {
-        // In case of list values, we need an expandable property with the list
-        // values as subproperties (though creation of such properties will
-        // only be done once the value is set)
-
-        // todo: lists probably need their own type here, such that a widget
-        // can be created that allows for adding elements
-        type = VariantPropertyManager::unstyledGroupTypeId();
     }
 
     if (type == objectRefTypeId())
