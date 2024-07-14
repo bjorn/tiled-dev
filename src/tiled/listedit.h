@@ -23,6 +23,7 @@
 #include <QWidget>
 
 class QLabel;
+class QToolButton;
 
 namespace Tiled {
 
@@ -47,9 +48,11 @@ signals:
 
 private:
     void addButtonClicked();
-    void editButtonClicked();
+    void populateAddMenu();
 
     QLabel *mLabel;
+    QToolButton *mAddButton;
+    QMenu *mAddMenu;
     QVariantList mValue;
 };
 

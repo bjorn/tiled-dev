@@ -278,20 +278,33 @@ void CustomPropertiesHelper::onValueChanged(QtProperty *property, const QVariant
     }
 
     if (value.userType() == QMetaType::QVariantList) {
+        const auto values = value.toList();
+
         QScopedValueRollback<bool> updating(mUpdating, true);
 
-        // Delete any existing sub-properties
-        deleteSubProperties(property);
+        // Delete any superfluous sub-properties
+        auto subProperties = property->subProperties();
+        while (subProperties.size() > values.size()) {
+            auto subProperty = subProperties.takeLast();
+            if (mPropertyParents.value(subProperty) == property) {
+                deletePropertyInternal(subProperty);
+                mPropertyParents.remove(subProperty);
+            }
+        }
 
-        // Create a sub-property for each list value
-        const auto values = value.toList();
+        subProperties.resize(values.size(), nullptr);
+
+        // Set sub-property values, creating them if necessary
         for (int i = 0; i < values.size(); ++i) {
             const auto &value = values.at(i);
 
-            auto subProperty = createPropertyInternal(QString::number(i), value);
-            subProperty->setValue(toDisplayValue(value));
-            property->addSubProperty(subProperty);
-            mPropertyParents.insert(subProperty, property);
+            if (!subProperties[i]) {
+                subProperties[i] = createPropertyInternal(QString::number(i), value);
+                property->addSubProperty(subProperties[i]);
+                mPropertyParents.insert(subProperties[i], property);
+            }
+
+            static_cast<QtVariantProperty*>(subProperties[i])->setValue(toDisplayValue(value));
         }
     }
 }
