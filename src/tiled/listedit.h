@@ -23,6 +23,7 @@
 #include <QWidget>
 
 class QLabel;
+class QMenu;
 class QToolButton;
 
 namespace Tiled {

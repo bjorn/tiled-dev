@@ -85,7 +85,11 @@ void ListEdit::addButtonClicked()
     if (mValue.isEmpty())
         return mAddButton->showMenu();
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     mValue.append(QVariant(mValue.last().metaType()));
+#else
+    mValue.append(QVariant(mValue.last().userType(), nullptr));
+#endif
     emit valueChanged(mValue);
 }
 

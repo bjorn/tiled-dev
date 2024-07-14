@@ -292,7 +292,12 @@ void CustomPropertiesHelper::onValueChanged(QtProperty *property, const QVariant
             }
         }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         subProperties.resize(values.size(), nullptr);
+#else
+        while (subProperties.size() < values.size())
+            subProperties.append(nullptr);
+#endif
 
         // Set sub-property values, creating them if necessary
         for (int i = 0; i < values.size(); ++i) {

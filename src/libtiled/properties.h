@@ -91,7 +91,7 @@ class TILEDSHARED_EXPORT ObjectRef
     Q_PROPERTY(int id MEMBER id)
 
 public:
-    int id;
+    int id = 0;
 
     bool operator==(const ObjectRef &o) const
     { return id == o.id; }
