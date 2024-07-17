@@ -100,9 +100,40 @@ QtVariantProperty *CustomPropertiesHelper::createProperty(const QString &name,
 QtVariantProperty *CustomPropertiesHelper::createPropertyInternal(const QString &name,
                                                                   const QVariant &value)
 {
+    const PropertyType *propertyType = nullptr;
+    const int type = propertyTypeForValue(value, propertyType);
+    return createPropertyInternal(name, type, propertyType);
+}
+
+QtVariantProperty *CustomPropertiesHelper::createPropertyInternal(const QString &name,
+                                                                  int type,
+                                                                  const PropertyType *propertyType)
+{
+    QtVariantProperty *property = mPropertyManager->addProperty(type, name);
+
+    if (type == QMetaType::Bool)
+        property->setAttribute(QLatin1String("textVisible"), false);
+    if (type == QMetaType::QString)
+        property->setAttribute(QLatin1String("multiline"), true);
+    if (type == QMetaType::Double)
+        property->setAttribute(QLatin1String("decimals"), 9);
+
+    if (propertyType) {
+        mPropertyTypeIds.insert(property, propertyType->id);
+        setPropertyAttributes(property, *propertyType);
+    } else {
+        mPropertyTypeIds.insert(property, 0);
+    }
+
+    return property;
+}
+
+int CustomPropertiesHelper::propertyTypeForValue(const QVariant &value,
+                                                 const PropertyType *&propertyType) const
+{
     int type = value.userType();
 
-    const PropertyType *propertyType = nullptr;
+    propertyType = nullptr;
 
     if (type == propertyValueId()) {
         const PropertyValue propertyValue = value.value<PropertyValue>();
@@ -130,27 +161,11 @@ QtVariantProperty *CustomPropertiesHelper::createPropertyInternal(const QString 
     if (type == objectRefTypeId())
         type = VariantPropertyManager::displayObjectRefTypeId();
 
-    QtVariantProperty *property = mPropertyManager->addProperty(type, name);
-    if (!property) {
-        // fall back to string property for unsupported property types
-        property = mPropertyManager->addProperty(QMetaType::QString, name);
-    }
+    // fall back to string property for unsupported property types
+    if (!mPropertyManager->isPropertyTypeSupported(type))
+        type = QMetaType::QString;
 
-    if (type == QMetaType::Bool)
-        property->setAttribute(QLatin1String("textVisible"), false);
-    if (type == QMetaType::QString)
-        property->setAttribute(QLatin1String("multiline"), true);
-    if (type == QMetaType::Double)
-        property->setAttribute(QLatin1String("decimals"), 9);
-
-    if (propertyType) {
-        mPropertyTypeIds.insert(property, propertyType->id);
-        setPropertyAttributes(property, *propertyType);
-    } else {
-        mPropertyTypeIds.insert(property, 0);
-    }
-
-    return property;
+    return type;
 }
 
 /**
@@ -238,47 +253,80 @@ QVariant CustomPropertiesHelper::fromDisplayValue(QtProperty *property,
     return value;
 }
 
-void CustomPropertiesHelper::onValueChanged(QtProperty *property, const QVariant &value)
+void CustomPropertiesHelper::applyValueChange(QtProperty *property, const QVariant &displayValue)
 {
-    if (!mPropertyTypeIds.contains(property))
-        return;
+    const auto propertyValue = fromDisplayValue(property, displayValue);
 
-    if (!mUpdating) {
-        const auto propertyValue = fromDisplayValue(property, value);
-        const auto path = propertyPath(property);
+    if (auto parent = static_cast<QtVariantProperty*>(mPropertyParents.value(property))) {
+        // If this is a list value, we need to apply the new value to the list.
+        if (parent->propertyType() == QMetaType::QVariantList) {
+            auto variantList = parent->value().toList();
+            const int index = parent->subProperties().indexOf(property);
+            if (index != -1) {
+                variantList[index] = propertyValue;
 
-        QScopedValueRollback<bool> emittingValueChanged(mEmittingValueChanged, true);
-        emit propertyMemberValueChanged(path, propertyValue);
+                QScopedValueRollback<bool> applyToParent(mNoApplyToChildren, true);
+                parent->setValue(variantList);
+            }
+            return;
+        }
+
+        // If this is a class member that is part of a list, we need to bubble
+        // up the value change to the parent class first.
+        if (isPartOfList(parent)) {
+            auto variantMap = parent->value().toMap();
+            variantMap.insert(property->propertyName(), propertyValue);
+
+            QScopedValueRollback<bool> applyToParent(mNoApplyToChildren, true);
+            parent->setValue(variantMap);
+
+            property->setModified(!variantMap.isEmpty());
+            return;
+        }
     }
 
+    // In all other cases, we emit the value change and let the listener handle
+    // it. This allows to apply the change to possibly multiple selected
+    // objects slightly differently.
+    QScopedValueRollback<bool> emittingValueChanged(mEmittingValueChanged, true);
+    emit propertyMemberValueChanged(propertyPath(property), propertyValue);
+}
+
+void CustomPropertiesHelper::applyChangeToChildren(QtProperty *property, const QVariant &displayValue)
+{
     if (auto type = propertyType(property); type && type->isClass()) {
         // Apply the change to the children
 
+        auto parent = static_cast<QtVariantProperty*>(mPropertyParents.value(property));
         auto &members = static_cast<const ClassPropertyType&>(*type).members;
 
         const auto subProperties = property->subProperties();
-        const auto map = value.toMap();
+        const auto map = displayValue.toMap();
 
         QScopedValueRollback<bool> updating(mUpdating, true);
 
         for (QtProperty *subProperty : subProperties) {
             const auto name = subProperty->propertyName();
             const bool modified = map.contains(name);
-            const auto value = modified ? map.value(name)
-                                        : members.value(name);
+            const auto value = toDisplayValue(modified ? map.value(name)
+                                                       : members.value(name));
 
             // Avoid setting child class members as modified, just because
             // the class definition sets different defaults on them.
-            const bool isParentTopLevel = !mPropertyParents.contains(property);
+            const bool isParentTopLevel = !parent;
+            const bool isParentInList = parent && parent->propertyType() == QMetaType::QVariantList;
             const bool isParentModified = property->isModified();
-            subProperty->setModified(modified && (isParentTopLevel || isParentModified));
+            subProperty->setModified(modified && (isParentTopLevel ||
+                                                  isParentInList ||
+                                                  isParentModified));
 
-            static_cast<QtVariantProperty*>(subProperty)->setValue(toDisplayValue(value));
+            static_cast<QtVariantProperty*>(subProperty)->setValue(value);
+            applyChangeToChildren(subProperty, value);
         }
     }
 
-    if (value.userType() == QMetaType::QVariantList) {
-        const auto values = value.toList();
+    if (displayValue.userType() == QMetaType::QVariantList) {
+        const auto values = displayValue.toList();
 
         QScopedValueRollback<bool> updating(mUpdating, true);
 
@@ -292,25 +340,53 @@ void CustomPropertiesHelper::onValueChanged(QtProperty *property, const QVariant
             }
         }
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        subProperties.resize(values.size(), nullptr);
-#else
-        while (subProperties.size() < values.size())
-            subProperties.append(nullptr);
-#endif
+        QtProperty *previousProperty = nullptr;
 
-        // Set sub-property values, creating them if necessary
+        // Set sub-property values, (re)creating them if necessary
         for (int i = 0; i < values.size(); ++i) {
             const auto &value = values.at(i);
+            auto subProperty = static_cast<QtVariantProperty*>(subProperties.value(i));
 
-            if (!subProperties[i]) {
-                subProperties[i] = createPropertyInternal(QString::number(i), value);
-                property->addSubProperty(subProperties[i]);
-                mPropertyParents.insert(subProperties[i], property);
+            const PropertyType *propertyType = nullptr;
+            const int type = propertyTypeForValue(value, propertyType);
+
+            // If the value is of a different type, delete the property
+            if (subProperty && subProperty->propertyType() != type) {
+                deletePropertyInternal(subProperty);
+                subProperty = nullptr;
             }
 
-            static_cast<QtVariantProperty*>(subProperties[i])->setValue(toDisplayValue(value));
+            if (!subProperty) {
+                // Create a new property
+                subProperty = createPropertyInternal(QString::number(i), type, propertyType);
+                property->insertSubProperty(subProperty, previousProperty);
+                mPropertyParents.insert(subProperty, property);
+            } else if (propertyType && mPropertyTypeIds.value(subProperty) != propertyType->id) {
+                // Adjust property in case its property type changed
+                mPropertyTypeIds.insert(subProperty, propertyType->id);
+                setPropertyAttributes(subProperty, *propertyType);
+            }
+
+            const auto displayValue = toDisplayValue(value);
+            static_cast<QtVariantProperty*>(subProperty)->setValue(displayValue);
+            applyChangeToChildren(subProperty, displayValue);
+
+            previousProperty = subProperty;
         }
+    }
+}
+
+void CustomPropertiesHelper::onValueChanged(QtProperty *property, const QVariant &displayValue)
+{
+    if (!mPropertyTypeIds.contains(property))
+        return;
+
+    if (!mUpdating)
+        applyValueChange(property, displayValue);
+
+    if (!mNoApplyToChildren) {
+        QScopedValueRollback<bool> applyingToChildren(mNoApplyToChildren, true);
+        applyChangeToChildren(property, displayValue);
     }
 }
 
@@ -318,9 +394,23 @@ void CustomPropertiesHelper::resetProperty(QtProperty *property)
 {
     // Reset class property value by removing it
     if (property->isModified()) {
-        // Only nested properties are currently marked as "modified", so in
-        // this case we rely on the handling of this signal
-        emit propertyMemberValueChanged(propertyPath(property), QVariant());
+        // Only class members are currently marked as "modified", but if there
+        // is a list involved, we need to bubble up the value change to the
+        // parent.
+        if (isPartOfList(property)) {
+            auto parent = static_cast<QtVariantProperty*>(mPropertyParents.value(property));
+            if (parent) {
+                auto variantMap = parent->value().toMap();
+                variantMap.remove(property->propertyName());
+
+                // Not setting mApplyingToParent here since we need this change
+                // to be applied to the children as well.
+                parent->setValue(variantMap);
+            }
+        } else {
+            // No lists involved, so we can rely on the handling of this signal
+            emit propertyMemberValueChanged(propertyPath(property), QVariant());
+        }
         return;
     }
 
@@ -439,6 +529,14 @@ QStringList CustomPropertiesHelper::propertyPath(QtProperty *property) const
 
     path.append(property->propertyName());
     return path;
+}
+
+bool CustomPropertiesHelper::isPartOfList(QtProperty *property) const
+{
+    if (auto parent = static_cast<QtVariantProperty*>(mPropertyParents.value(property)))
+        return parent->propertyType() == QMetaType::QVariantList || isPartOfList(parent);
+
+    return false;
 }
 
 } // namespace Tiled
