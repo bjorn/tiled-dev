@@ -67,10 +67,11 @@ ResetWidget::ResetWidget(QtProperty *property, QWidget *editor, QWidget *parent)
 
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
-    layout->addWidget(editor);
-    layout->addWidget(resetButton);
-
-    setFocusProxy(editor);
+    if (editor) {
+        layout->addWidget(editor, 1);
+        setFocusProxy(editor);
+    }
+    layout->addWidget(resetButton, 0, Qt::AlignRight);
 
     connect(resetButton, &QToolButton::clicked, this, &ResetWidget::buttonClicked);
 }
