@@ -45,10 +45,9 @@ public:
 
 signals:
     void resetProperty(QtProperty *property);
+    void removeProperty(QtProperty *property);
 
 private:
-    void buttonClicked();
-
     QtProperty *mProperty;
 };
 
@@ -65,6 +64,13 @@ ResetWidget::ResetWidget(QtProperty *property, QWidget *editor, QWidget *parent)
     resetButton->setToolTip(tr("Reset"));
     Utils::setThemeIcon(resetButton, "edit-clear");
 
+    auto removeButton = new QToolButton(this);
+    removeButton->setIcon(QIcon(QLatin1String(":/images/16/edit-delete.png")));
+    removeButton->setIconSize(Utils::smallIconSize());
+    removeButton->setAutoRaise(true);
+    removeButton->setToolTip(tr("Remove"));
+    Utils::setThemeIcon(removeButton, "edit-delete");
+
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     if (editor) {
@@ -72,13 +78,14 @@ ResetWidget::ResetWidget(QtProperty *property, QWidget *editor, QWidget *parent)
         setFocusProxy(editor);
     }
     layout->addWidget(resetButton, 0, Qt::AlignRight);
+    layout->addWidget(removeButton, 0, Qt::AlignRight);
 
-    connect(resetButton, &QToolButton::clicked, this, &ResetWidget::buttonClicked);
-}
-
-void ResetWidget::buttonClicked()
-{
-    emit resetProperty(mProperty);
+    connect(resetButton, &QToolButton::clicked, this, [this] {
+        emit resetProperty(mProperty);
+    });
+    connect(removeButton, &QToolButton::clicked, this, [this] {
+        emit removeProperty(mProperty);
+    });
 }
 
 
@@ -196,12 +203,14 @@ QWidget *VariantEditorFactory::createEditor(QtVariantPropertyManager *manager,
     if (!editor)
         editor = QtVariantEditorFactory::createEditor(manager, property, parent);
 
-    if (type == QMetaType::QColor || type == VariantPropertyManager::displayObjectRefTypeId() || property->isModified()) {
+    if (true || type == QMetaType::QColor || type == VariantPropertyManager::displayObjectRefTypeId() || property->isModified()) {
         // Allow resetting color and object reference properties, or allow
         // unsetting a class member (todo: resolve conflict...).
         auto resetWidget = new ResetWidget(property, editor, parent);
         connect(resetWidget, &ResetWidget::resetProperty,
                 this, &VariantEditorFactory::resetProperty);
+        connect(resetWidget, &ResetWidget::removeProperty,
+                this, &VariantEditorFactory::removeProperty);
         editor = resetWidget;
     }
 

@@ -77,6 +77,7 @@ private:
 
     void onValueChanged(QtProperty *property, const QVariant &value);
     void resetProperty(QtProperty *property);
+    void removeProperty(QtProperty *property);
     void propertyTypesChanged();
 
     void setPropertyAttributes(QtVariantProperty *property,

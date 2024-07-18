@@ -53,6 +53,8 @@ CustomPropertiesHelper::CustomPropertiesHelper(QtAbstractPropertyBrowser *proper
 
     connect(variantEditorFactory, &VariantEditorFactory::resetProperty,
             this, &CustomPropertiesHelper::resetProperty);
+    connect(variantEditorFactory, &VariantEditorFactory::removeProperty,
+            this, &CustomPropertiesHelper::removeProperty);
 
     connect(Preferences::instance(), &Preferences::propertyTypesChanged,
             this, &CustomPropertiesHelper::propertyTypesChanged);
@@ -403,8 +405,8 @@ void CustomPropertiesHelper::resetProperty(QtProperty *property)
                 auto variantMap = parent->value().toMap();
                 variantMap.remove(property->propertyName());
 
-                // Not setting mApplyingToParent here since we need this change
-                // to be applied to the children as well.
+                // Not setting mNoApplyToChildren here since we need this
+                // change to be applied to the children as well.
                 parent->setValue(variantMap);
             }
         } else {
@@ -423,6 +425,26 @@ void CustomPropertiesHelper::resetProperty(QtProperty *property)
         mPropertyManager->setValue(property, toDisplayValue(QVariant::fromValue(ObjectRef())));
     } else {
         qWarning() << "Requested reset of unsupported type" << typeId << "for property" << property->propertyName();
+    }
+}
+
+void CustomPropertiesHelper::removeProperty(QtProperty *property)
+{
+    // Removing is only supported for list items for now
+    auto parent = static_cast<QtVariantProperty*>(mPropertyParents.value(property));
+    if (!parent)
+        return;
+    if (parent->propertyType() != QMetaType::QVariantList)
+        return;
+
+    auto variantList = parent->value().toList();
+    const int index = parent->subProperties().indexOf(property);
+    if (index != -1) {
+        variantList.removeAt(index);
+
+        // Not setting mNoApplyToChildren here since we need this
+        // change to be applied to the children as well.
+        parent->setValue(variantList);
     }
 }
 

@@ -55,6 +55,7 @@ public:
 
 signals:
     void resetProperty(QtProperty *property);
+    void removeProperty(QtProperty *property);
 
 protected:
     void connectPropertyManager(QtVariantPropertyManager *manager) override;
