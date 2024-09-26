@@ -198,6 +198,38 @@ template<> EnumData enumData<WangSet::Type>()
     return { names, {}, icons };
 }
 
+template<> EnumData enumData<QPainter::CompositionMode>()
+{
+    const QStringList names {
+        QStringLiteral("SourceOver"),
+        QStringLiteral("DestinationOver"),
+        QStringLiteral("Clear"),
+        QStringLiteral("Source"),
+        QStringLiteral("Destination"),
+        QStringLiteral("SourceIn"),
+        QStringLiteral("DestinationIn"),
+        QStringLiteral("SourceOut"),
+        QStringLiteral("DestinationOut"),
+        QStringLiteral("SourceAtop"),
+        QStringLiteral("DestinationAtop"),
+        QStringLiteral("Xor"),
+        QStringLiteral("Plus"),
+        QStringLiteral("Multiply"),
+        QStringLiteral("Screen"),
+        QStringLiteral("Overlay"),
+        QStringLiteral("Darken"),
+        QStringLiteral("Lighten"),
+        QStringLiteral("ColorDodge"),
+        QStringLiteral("ColorBurn"),
+        QStringLiteral("HardLight"),
+        QStringLiteral("SoftLight"),
+        QStringLiteral("Difference"),
+        QStringLiteral("Exclusion"),
+    };
+
+    return { names };
+}
+
 
 class ObjectRefProperty : public PropertyTemplate<DisplayObjectRef>
 {
@@ -1008,6 +1040,13 @@ public:
                     });
         mParallaxFactorProperty->setSingleStep(0.1);
 
+        mCompositionModeProperty = new EnumProperty<QPainter::CompositionMode>(
+                    tr("Composition Mode"),
+                    [this] { return layer()->compositionMode(); },
+                    [this](QPainter::CompositionMode mode) {
+                        layer()->setCompositionMode(mode);  // todo: undo
+                    });
+
         mLayerProperties = new GroupProperty(tr("Layer"));
         mLayerProperties->addProperty(mIdProperty);
         mLayerProperties->addProperty(mNameProperty);
@@ -1019,6 +1058,7 @@ public:
         mLayerProperties->addProperty(mTintColorProperty);
         mLayerProperties->addProperty(mOffsetProperty);
         mLayerProperties->addProperty(mParallaxFactorProperty);
+        mLayerProperties->addProperty(mCompositionModeProperty);
 
         connect(document, &Document::changed,
                 this, &LayerProperties::onChanged);
@@ -1072,6 +1112,7 @@ protected:
     Property *mTintColorProperty;
     Property *mOffsetProperty;
     PointFProperty *mParallaxFactorProperty;
+    BaseEnumProperty *mCompositionModeProperty;
 };
 
 class ImageLayerProperties : public LayerProperties
