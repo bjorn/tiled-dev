@@ -122,6 +122,8 @@ VariantMapProperty::VariantMapProperty(const QString &name, QObject *parent)
 void VariantMapProperty::setValue(const QVariantMap &value,
                                   const QVariantMap &suggestions)
 {
+    QScopedValueRollback<bool> noPaint(PropertiesView::shouldNotRepaint, true);
+
     QVariantMap oldProperties = mSuggestions;
     mergeProperties(oldProperties, mValue);
 
@@ -305,6 +307,8 @@ bool VariantMapProperty::createOrUpdateProperty(int index,
         auto set = [this] (const PropertyPath &path, const QVariant &value) {
             setMemberValue(path, value);
         };
+
+        qDebug() << "Creating property for" << name << "with type" << newValue.typeName();
 
         property = createProperty(path, std::move(get), std::move(set));
         if (property) {

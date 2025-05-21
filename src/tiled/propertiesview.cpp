@@ -42,6 +42,7 @@
 #include <QSpacerItem>
 #include <QSpinBox>
 #include <QToolButton>
+#include <qlogging.h>
 
 namespace Tiled {
 
@@ -796,6 +797,8 @@ Property *createVariantProperty(const QString &name,
 }
 
 
+bool PropertiesView::shouldNotRepaint;
+
 PropertiesView::PropertiesView(QWidget *parent)
     : QScrollArea(parent)
     , m_resetIcon(QIcon(QStringLiteral(":/images/16/edit-clear.png")))
@@ -1077,6 +1080,16 @@ void PropertiesView::keyPressEvent(QKeyEvent *event)
     QScrollArea::keyPressEvent(event);
 }
 
+bool PropertiesView::event(QEvent *event)
+{
+    if (event->type() == QEvent::Paint) {
+        QScrollArea::paintEvent(static_cast<QPaintEvent *>(event));
+        qDebug() << "PropertiesView::paintEvent: shouldNotRepaint = " << shouldNotRepaint;
+        return true;
+    }
+    return QScrollArea::event(event);
+}
+
 bool PropertiesView::focusNextPrevProperty(Property *property, bool next, bool shiftPressed)
 {
     if (!property)
@@ -1138,10 +1151,10 @@ void PropertiesView::deletePropertyWidgets(Property *property)
 
     // This appears to be necessary to avoid flickering due to relayouting
     // not being done before the next paint.
-    while (widget && widget->layout()) {
-        widget->layout()->activate();
-        widget = widget->parentWidget();
-    }
+    // while (widget && widget->layout()) {
+    //     widget->layout()->activate();
+    //     widget = widget->parentWidget();
+    // }
 }
 
 void PropertiesView::forgetProperty(Property *property)
@@ -1219,6 +1232,7 @@ void PropertiesView::createPropertyWidgets(Property *property, QWidget *parent, 
 {
     auto widgets = createPropertyWidgets(property, parent, level);
     m_propertyWidgets.insert(property, widgets);
+    qDebug() << "Inserting row widget at index" << index;
     layout->insertWidget(index, widgets.rowWidget);
 
     if (index < layout->count() - 1 && !m_fixTabOrderScheduled) {
@@ -1226,6 +1240,17 @@ void PropertiesView::createPropertyWidgets(Property *property, QWidget *parent, 
         QMetaObject::invokeMethod(this, &PropertiesView::fixTabOrder, Qt::QueuedConnection);
     }
 }
+
+class RowWidget : public QWidget {
+public:
+    RowWidget(QWidget *parent = nullptr) : QWidget(parent) {}
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        qDebug() << "Painting row widget";
+        QWidget::paintEvent(event);
+    }
+};
 
 PropertiesView::PropertyWidgets PropertiesView::createPropertyWidgets(Property *property,
                                                                       QWidget *parent,
@@ -1253,7 +1278,7 @@ PropertiesView::PropertyWidgets PropertiesView::createPropertyWidgets(Property *
     const auto halfSpacing = Utils::dpiScaled(2);
 
     if (displayMode == Property::DisplayMode::Separator) {
-        auto rowWidget = new QWidget(parent);
+        auto rowWidget = new RowWidget(parent);
         auto rowLayout = new QHBoxLayout(rowWidget);
 
         auto separator = new QFrame(rowWidget);
@@ -1449,7 +1474,7 @@ void PropertiesView::setPropertyChildrenExpanded(PropertyWidgets &widgets,
         if (!expanded) {
             QWidget *widget = widgets.rowWidget;
             while (widget && widget->layout()) {
-                widget->layout()->activate();
+                widget->layout()->update();
                 widget = widget->parentWidget();
             }
         }

@@ -1033,6 +1033,8 @@ void PropertyWidget::setSelected(bool selected)
 
 void PropertyWidget::paintEvent(QPaintEvent *event)
 {
+    qDebug() << "Painting property widget: shouldNotRepaint = " << PropertiesView::shouldNotRepaint;
+
     QWidget::paintEvent(event);
 
     const auto halfSpacing = Utils::dpiScaled(2);

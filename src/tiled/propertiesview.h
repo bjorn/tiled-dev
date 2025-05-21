@@ -563,6 +563,11 @@ public:
     bool focusProperty(Property *property, FocusTarget target = FocusEditor);
     Property *focusedProperty() const;
 
+    // void startUpdate();
+    // void endUpdate();
+
+    static bool shouldNotRepaint;
+
 signals:
     void selectedPropertiesChanged();
 
@@ -571,6 +576,7 @@ protected:
 
     void mousePressEvent(QMouseEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
+    bool event(QEvent *event) override;
 
 private:
     bool focusNextPrevProperty(Property *property, bool next, bool shiftPressed);

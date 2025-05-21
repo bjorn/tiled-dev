@@ -48,6 +48,7 @@
 #include "wangoverlay.h"
 
 #include <QAction>
+#include <QApplication>
 #include <QCheckBox>
 #include <QCoreApplication>
 #include <QEvent>
@@ -478,8 +479,9 @@ class CustomProperties : public VariantMapProperty
     Q_OBJECT
 
 public:
-    CustomProperties(QObject *parent = nullptr)
+    CustomProperties(PropertiesView *view, QObject *parent = nullptr)
         : VariantMapProperty(tr("Custom Properties"), parent)
+        , mView(view)
     {
         connect(this, &VariantMapProperty::memberValueChanged,
                 this, &CustomProperties::setPropertyValue);
@@ -553,6 +555,7 @@ private:
     void setPropertyValue(const PropertyPath &path, const QVariant &value);
 
     bool mUpdating = false;
+    PropertiesView *mView = nullptr;
 };
 
 
@@ -2209,9 +2212,10 @@ PropertiesWidget::PropertiesWidget(QWidget *parent)
     , mAddIcon(QIcon(QStringLiteral(":/images/16/add.png")))
     , mRenameIcon(QIcon(QLatin1String(":/images/16/rename.png")))
     , mRootProperty(new GroupProperty())
-    , mCustomProperties(new CustomProperties(mRootProperty))
-    , mPropertiesView(new PropertiesView(this))
 {
+    mPropertiesView = new PropertiesView(this);
+    mCustomProperties = new CustomProperties(mPropertiesView, mRootProperty);
+
     mResetIcon.addFile(QStringLiteral(":/images/24/edit-clear.png"));
     mRemoveIcon.addFile(QStringLiteral(":/images/22/remove.png"));
     mAddIcon.addFile(QStringLiteral(":/images/22/add.png"));
@@ -2513,8 +2517,36 @@ static void addAutomappingProperties(Properties &properties, const Object *objec
     }
 }
 
+static void activateWidgetLayouts(QLayout *layout);
+static void activateWidgetLayouts(QWidget *widget)
+{
+    if (!widget->isVisible())
+        return;
+
+    auto layout = widget->layout();
+    if (!layout)
+        return;
+
+    activateWidgetLayouts(layout);
+    layout->activate();
+}
+
+static void activateWidgetLayouts(QLayout *layout)
+{
+    if (!layout)
+        return;
+
+    for (int i = 0; i < layout->count(); ++i) {
+        if (auto widget = layout->itemAt(i)->widget())
+            activateWidgetLayouts(widget);
+        else if (auto layoutItemLayout = layout->itemAt(i)->layout())
+            activateWidgetLayouts(layoutItemLayout);
+    }
+}
+
 void CustomProperties::refresh()
 {
+    qDebug() << Q_FUNC_INFO;
     if (!mDocument || !mDocument->currentObject()) {
         setValue({});
         return;
@@ -2534,6 +2566,11 @@ void CustomProperties::refresh()
     const bool editingTileset = mDocument->type() == Document::TilesetDocumentType;
     const bool partOfTileset = mDocument->currentObject()->isPartOfTileset();
     setEnabled(!partOfTileset || editingTileset);
+
+    qDebug() << Q_FUNC_INFO << "activateWidgetLayouts";
+    activateWidgetLayouts(mView->widget());
+    // mView->widget()->updateGeometry();
+    // mView->widget()->grab();
 }
 
 void CustomProperties::setPropertyValue(const PropertyPath &path, const QVariant &value)
