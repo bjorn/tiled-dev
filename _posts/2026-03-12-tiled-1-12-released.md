@@ -34,14 +34,13 @@ tiled.activeAsset.selectedObjects[0].setProperty("drops", [
 
 ### Oblique Maps, Layer Blending, and Capsules
 
-This release adds support for an **Oblique** map orientation, allowing the X and/or Y axis to be skewed. This opens up additional possibilities for map presentation beyond the existing orthogonal, isometric, staggered and hexagonal orientations.
+This release adds support for an **Oblique** map orientation, allowing the X and/or Y axis to be skewed. Here are two examples of oblique maps rendered by Tiled, using tiles provided by **sxdxs** and **wayfu** on [the original GitHub issue](https://github.com/mapeditor/tiled/issues/2917):
 
 ![Two oblique maps as rendered by Tiled](/img/posts/2026-03-oblique-orientation.png)
 
-Layers gained support for SVG 1.2 / CSS blending modes.
+Layers gained support for SVG 1.2 / CSS blending modes (Normal, Multiply, Screen, Overlay, Darken, Lighten, Color Dodge, Color Burn, Hard Light, Soft Light, Difference, and Exclusion). Here's a comparison of Normal and Multiply blending modes in a level by Tom Happ:
 
 ![Comparison of Normal and Multiply blending modes](/img/posts/2026-03-blending-modes.png)
-(by Tom Happ)
 
 For object layers, there is now a capsule object shape, which should be a nice addition when your physics engine supports it. In addition, object opacity can now be adjusted per object.
 
