@@ -13,7 +13,7 @@ Tiled 1.12 brings a rewritten Properties view with direct widget interaction, su
 
 The Properties view has been rewritten to make editing properties more direct and convenient. Rather than creating widgets when clicking values, the values can now be interacted with immediately. This especially improves the workflow when working with checkboxes, comboboxes, colors, file paths, object references, and for included buttons.
 
-![The rewritten Properties view, showing interactive widgets for color, file, object reference and other property types directly editable in-place](/img/posts/2026-03-properties-view.png)
+![The rewritten Properties view, showing the new widgets used for Map, Layer, Object and Tileset properties, directly editable in-place](/img/posts/2026-03-properties-view.png)
 
 This rewrite also layed the groundwork for supporting lists in custom properties.
 
@@ -21,7 +21,7 @@ This rewrite also layed the groundwork for supporting lists in custom properties
 
 Custom properties can now store lists of values. This much requested feature is useful when a single value is not sufficient. Need multiple references, fill containers with multiple items or maybe just have a list of tags? Now you no longer have to resort to comma-separated strings or numbered property names.
 
-![A list-valued custom property being edited in Tiled, showing ordered entries in the improved property editing workflow](/img/posts/2026-03-list-properties.png)
+![A list-valued custom property being edited in Tiled, showing a list of instances of a custom "Drop" class](/img/posts/2026-03-list-properties.png)
 
 Of course list values are also supported in the scripting API, where they map to/from JS arrays:
 
@@ -36,9 +36,11 @@ tiled.activeAsset.selectedObjects[0].setProperty("drops", [
 
 This release adds support for an **Oblique** map orientation, allowing the X and/or Y axis to be skewed. This opens up additional possibilities for map presentation beyond the existing orthogonal, isometric, staggered and hexagonal orientations.
 
+![Two oblique maps as rendered by Tiled](/img/posts/2026-03-oblique-orientation.png)
+
 Layers gained support for SVG 1.2 / CSS blending modes. For object layers, there is now a capsule object shape, which should be a nice addition when your physics engine supports it. In addition, object opacity can now be adjusted per object.
 
-![An Oblique map shown in Tiled, with layer blending, semi-transparent objects and a capsule object demonstrating the new visual flexibility](/img/posts/2026-03-capsule-objects.png)
+![A map shown in Tiled with a number of capsule objects](/img/posts/2026-03-capsule-objects.png)
 
 ### Many Workflow Improvements
 
@@ -47,8 +49,6 @@ A large part of this release is focused on smaller quality-of-life improvements 
 Several tile editing tools became more convenient as well. The Rectangular Select tool gained square selection and expand-from-center behavior. The Stamp Brush, Terrain Brush and Eraser now show status information for their various modes. It is also now possible to cancel tile-related operations with <kbd>Escape</kbd> or right-click. Finally, the Magic Wand, Bucket Fill and Select Same Tile tools now allow their area to be expanded by dragging across multiple tiles.
 
 Other usability updates include a "Go to Tile" action to jump to specific coordinates, a "World > World Properties" action that makes World properties accessible, switching back to the previous tool by repeating the shortcut of the current tool, plus a button to toggle the Terrain Brush to full tile mode.
-
-![Workflow improvements in action, such as filtering tilesets by name, rectangular selection constrained to a square, or the Terrain Brush full tile mode toggle](/img/posts/2026-03-workflow-improvements.png)
 
 ### Exporting, Scripting and Automation
 
