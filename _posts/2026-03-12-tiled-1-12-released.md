@@ -38,7 +38,7 @@ This release adds support for an **Oblique** map orientation, allowing the X and
 
 Layers gained support for SVG 1.2 / CSS blending modes. For object layers, there is now a capsule object shape, which should be a nice addition when your physics engine supports it. In addition, object opacity can now be adjusted per object.
 
-![An Oblique map shown in Tiled, with layer blending, semi-transparent objects and a capsule object demonstrating the new visual flexibility](/img/posts/2026-03-oblique-map.png)
+![An Oblique map shown in Tiled, with layer blending, semi-transparent objects and a capsule object demonstrating the new visual flexibility](/img/posts/2026-03-capsule-objects.png)
 
 ### Many Workflow Improvements
 
