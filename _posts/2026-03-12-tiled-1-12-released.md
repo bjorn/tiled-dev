@@ -38,7 +38,12 @@ This release adds support for an **Oblique** map orientation, allowing the X and
 
 ![Two oblique maps as rendered by Tiled](/img/posts/2026-03-oblique-orientation.png)
 
-Layers gained support for SVG 1.2 / CSS blending modes. For object layers, there is now a capsule object shape, which should be a nice addition when your physics engine supports it. In addition, object opacity can now be adjusted per object.
+Layers gained support for SVG 1.2 / CSS blending modes.
+
+![Comparison of Normal and Multiply blending modes](/img/posts/2026-03-blending-modes.png)
+(by Tom Happ)
+
+For object layers, there is now a capsule object shape, which should be a nice addition when your physics engine supports it. In addition, object opacity can now be adjusted per object.
 
 ![A map shown in Tiled with a number of capsule objects](/img/posts/2026-03-capsule-objects.png)
 
